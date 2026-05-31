@@ -1,0 +1,273 @@
+{
+  "info": {
+    "_postman_id": "c2a2b33a-6f8a-4c41-9b0c-49b1c4c53a7a",
+    "name": "Ding AI Service (FastAPI Wrapper)",
+    "description": "FastAPI wrapper around Ollama with JWT + X-API-Key guards, chat sessions, message history, and user context sync.\n\nCollection variables:\n- baseUrl (default http://localhost:8000)\n- serviceApiKey\n- jwt\n- sessionId (auto-set by Create Session request)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string" },
+    { "key": "serviceApiKey", "value": "change-me", "type": "string" },
+    { "key": "jwt", "value": "change-me", "type": "string" },
+    { "key": "sessionId", "value": "", "type": "string" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-apply auth headers to all requests except health.",
+          "const rawUrl = (pm.request.url && pm.request.url.toString) ? pm.request.url.toString() : '';",
+          "const path = rawUrl.replace(/^https?:\\/\\/[^/]+/i, '');",
+          "const isHealth = path.endsWith('/api/v1/health');",
+          "",
+          "if (!isHealth) {",
+          "  const jwt = pm.collectionVariables.get('jwt');",
+          "  const apiKey = pm.collectionVariables.get('serviceApiKey');",
+          "  if (jwt && jwt !== 'change-me') {",
+          "    pm.request.headers.upsert({ key: 'Authorization', value: `Bearer ${jwt}` });",
+          "  }",
+          "  if (apiKey && apiKey !== 'change-me') {",
+          "    pm.request.headers.upsert({ key: 'X-API-Key', value: apiKey });",
+          "  }",
+          "}",
+          "",
+          "// Ensure JSON content-type when body exists.",
+          "if (pm.request.body && pm.request.body.mode === 'raw') {",
+          "  pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /api/v1/health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('body has status', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Context",
+      "item": [
+        {
+          "name": "PATCH /api/v1/chat/me/context",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"Ziad\",\n  \"username\": \"ziad\",\n  \"bio\": \"Building Ding\",\n  \"language\": \"en\",\n  \"location\": \"Cairo\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/chat/me/context"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Chat Sessions",
+      "item": [
+        {
+          "name": "POST /api/v1/chat/sessions (Create)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has id', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('id');",
+                  "  pm.collectionVariables.set('sessionId', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"My first session\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/chat/sessions"
+          }
+        },
+        {
+          "name": "GET /api/v1/chat/sessions (List)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has pagination shape', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('items');",
+                  "  pm.expect(json).to.have.property('total');",
+                  "  pm.expect(json).to.have.property('page');",
+                  "  pm.expect(json).to.have.property('page_size');",
+                  "  pm.expect(json).to.have.property('has_next');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/chat/sessions?page=1&page_size=20"
+          }
+        },
+        {
+          "name": "GET /api/v1/chat/sessions/{{sessionId}} (Detail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has messages array', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('messages');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}"
+          }
+        },
+        {
+          "name": "DELETE /api/v1/chat/sessions/{{sessionId}} (Archive)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messaging",
+      "item": [
+        {
+          "name": "POST /api/v1/chat/sessions/{{sessionId}}/messages (Send)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has user_message + assistant_message', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('user_message');",
+                  "  pm.expect(json).to.have.property('assistant_message');",
+                  "  pm.expect(json).to.have.property('session_id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Hello! Summarize what you know about me from my profile context.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages"
+          }
+        },
+        {
+          "name": "GET /api/v1/chat/sessions/{{sessionId}}/messages (List)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response has pagination shape', function () {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json).to.have.property('items');",
+                  "  pm.expect(json).to.have.property('total');",
+                  "  pm.expect(json).to.have.property('page');",
+                  "  pm.expect(json).to.have.property('page_size');",
+                  "  pm.expect(json).to.have.property('has_next');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages?page=1&page_size=20"
+          }
+        }
+      ]
+    }
+  ]
+}
