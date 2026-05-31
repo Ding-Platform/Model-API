@@ -6,9 +6,6 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://ai_server:ai_server_pass@postgres:5432/ai_server_db
-      REDIS_URL: redis://redis:6379
-      DEBUG: "true"
       PYTHONUNBUFFERED: "1"
     depends_on:
       postgres:
