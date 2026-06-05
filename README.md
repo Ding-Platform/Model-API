@@ -1,5 +1,5 @@
 # Model-API
-A lightweight FastAPI wrapper around Ollama that provides secure and scalable AI inference endpoints with support for streaming, authentication, and custom prompt workflows.
+A lightweight FastAPI wrapper around Ollama that provides secure and scalable AI inference endpoints with support for streaming, authentication, custom prompt workflows, and embedded Kokoro text-to-speech.
 
 ## Local run (Docker Compose)
 
@@ -27,6 +27,16 @@ On the server, configure `.env` with Docker service hostnames (`postgres`, `redi
 - Public (via host Nginx): `http://<server>/model-api/` (e.g. `/model-api/chat/sessions`)
 
 Chat routes require `Authorization: Bearer <platform JWT>` and `X-API-Key: <SERVICE_API_KEY>`.
+
+## TTS (embedded Kokoro)
+
+Text-to-speech runs in-process (no separate TTS container). On first startup the Kokoro model weights download (~200 MB); allow up to ~2 minutes before `/api/v1/health` reports `tts_ok: true`.
+
+- **Endpoint:** `POST /api/v1/tts/speak`
+- **Auth:** same JWT + X-API-Key as chat
+- **Request:** `{"text": "Hello!", "return_visemes": true}`
+- **Response:** `application/x-ndjson` stream — each line has base64 WAV `audio` and optional `visemes` for lip-sync
+- **Disable TTS:** set `TTS_ENABLED=false` in `.env` (skips model load at startup)
 
 ## Use this service from an *external* docker-compose.yml
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.redis_client import close_redis
 from app.services.ollama import get_ollama_service
+from app.services.tts import get_tts_service
 
 settings = get_settings()
 
@@ -27,6 +29,8 @@ async def lifespan(app: FastAPI):
         settings.APP_VERSION,
         settings.ENVIRONMENT,
     )
+    if settings.TTS_ENABLED:
+        await asyncio.to_thread(get_tts_service().load)
     yield
     await close_redis()
     await get_ollama_service().close()

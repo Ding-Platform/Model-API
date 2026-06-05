@@ -3,7 +3,7 @@ info:
   title: Ding AI Service (FastAPI Wrapper)
   version: "1.0.0"
   description: |
-    FastAPI wrapper around Ollama with JWT + X-API-Key guards, chat sessions, message history, and user context sync.
+    FastAPI wrapper around Ollama with JWT + X-API-Key guards, chat sessions, message history, user context sync, and embedded Kokoro TTS.
 
 servers:
   - url: http://localhost:8000
@@ -14,6 +14,8 @@ tags:
     description: Health checks
   - name: chat
     description: Chat sessions, messages, and user context
+  - name: tts
+    description: Text-to-speech with lip-sync visemes
 
 paths:
   /api/v1/health:
@@ -33,6 +35,48 @@ paths:
                   value:
                     status: ok
                     ollama_ok: true
+                    tts_ok: true
+
+  /api/v1/tts/speak:
+    post:
+      tags: [tts]
+      summary: Stream text-to-speech (NDJSON)
+      description: |
+        Generates speech in NDJSON chunks. Each line is a JSON object with base64 WAV audio
+        and optional viseme timeline for lip-sync.
+      operationId: speakTTS
+      security:
+        - ApiKeyAuth: []
+          BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TTSRequest"
+            examples:
+              sample:
+                value:
+                  text: Hi there! I am Noro, your dependable friend.
+                  return_visemes: true
+      responses:
+        "200":
+          description: NDJSON stream of audio chunks
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+                description: One JSON object per line with `audio` (base64 WAV) and optional `visemes`
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: TTS disabled or not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/v1/chat/me/context:
     patch:
@@ -295,7 +339,7 @@ components:
     HealthResponse:
       type: object
       additionalProperties: false
-      required: [status, ollama_ok]
+      required: [status, ollama_ok, tts_ok]
       properties:
         status:
           type: string
@@ -303,6 +347,21 @@ components:
         ollama_ok:
           type: boolean
           description: Whether the upstream Ollama health check passed
+        tts_ok:
+          type: boolean
+          description: Whether the embedded Kokoro TTS pipeline finished loading
+
+    TTSRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+        return_visemes:
+          type: boolean
+          default: true
 
     ErrorResponse:
       type: object

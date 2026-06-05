@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     OLLAMA_TIMEOUT: float = 60.0
     OLLAMA_MAX_CONTEXT_MESSAGES: int = 20
 
+    TTS_ENABLED: bool = True
+    TTS_LANG_CODE: str = "a"
+    TTS_SPEED: float = 1.28
+    TTS_RETURN_VISEMES_DEFAULT: bool = True
+
     MAX_PAGE_SIZE: int = 100
 
 
