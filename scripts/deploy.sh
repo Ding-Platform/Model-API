@@ -71,15 +71,47 @@ deploy_services() {
     print_success "Services built and started"
 }
 
+pull_ollama_model() {
+    local model
+    model="$(grep -E '^OLLAMA_MODEL=' .env | cut -d= -f2- | tr -d '"')"
+    if [ -z "$model" ]; then
+        model="qwen2.5:0.5b"
+    fi
+
+    print_info "Waiting for Ollama to be ready..."
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+        if docker compose $COMPOSE_FILES exec -T ollama ollama list >/dev/null 2>&1; then
+            break
+        fi
+        attempt=$((attempt + 1))
+        echo -n "."
+        sleep 2
+    done
+    echo ""
+
+    print_info "Pulling Ollama model: $model (first run may take a few minutes)..."
+    docker compose $COMPOSE_FILES exec -T ollama ollama pull "$model"
+    print_success "Ollama model ready: $model"
+}
+
 wait_for_health() {
     print_info "Waiting for Model-API health at $MODEL_API_HEALTH_URL ..."
 
     max_attempts=30
     attempt=0
     while [ $attempt -lt $max_attempts ]; do
-        if curl -sf "$MODEL_API_HEALTH_URL" > /dev/null 2>&1; then
-            print_success "Model-API is healthy"
-            return 0
+        health_json="$(curl -sf "$MODEL_API_HEALTH_URL" 2>/dev/null || true)"
+        if [ -n "$health_json" ]; then
+            if echo "$health_json" | grep -q '"ollama_ok":true'; then
+                print_success "Model-API is healthy (ollama_ok=true)"
+                echo "$health_json"
+                return 0
+            fi
+            if echo "$health_json" | grep -q '"db_ok":true'; then
+                print_info "API is up but Ollama not ready yet: $health_json"
+            fi
         fi
         attempt=$((attempt + 1))
         echo -n "."
@@ -88,7 +120,7 @@ wait_for_health() {
 
     echo ""
     print_error "Model-API failed health check ($MODEL_API_HEALTH_URL)"
-    print_info "Check logs: docker compose $COMPOSE_FILES logs --tail=80 ai-server-api"
+    print_info "Check logs: docker compose $COMPOSE_FILES logs --tail=80 ai-server-api ollama"
     return 1
 }
 
@@ -129,6 +161,9 @@ main() {
     echo ""
 
     deploy_services
+    echo ""
+
+    pull_ollama_model
     echo ""
 
     wait_for_health

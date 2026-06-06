@@ -19,3 +19,10 @@ services:
 
   redis:
     ports: !reset []
+
+  ollama:
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 1536M

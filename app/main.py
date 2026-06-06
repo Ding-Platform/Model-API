@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -21,6 +22,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def _load_tts_background() -> None:
+    try:
+        await asyncio.to_thread(get_tts_service().load)
+    except Exception:
+        logger.exception("Background TTS load failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(
@@ -29,9 +37,14 @@ async def lifespan(app: FastAPI):
         settings.APP_VERSION,
         settings.ENVIRONMENT,
     )
+    tts_task: asyncio.Task | None = None
     if settings.TTS_ENABLED:
-        await asyncio.to_thread(get_tts_service().load)
+        tts_task = asyncio.create_task(_load_tts_background())
     yield
+    if tts_task is not None and not tts_task.done():
+        tts_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await tts_task
     await close_redis()
     await get_ollama_service().close()
     logger.info("Shutdown complete")
